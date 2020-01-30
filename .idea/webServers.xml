@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="eacd4e60-a9ae-4c76-8635-73f6778d8505" name="RPi3" url="http://192.168.100.70">
+        <fileTransfer rootFolder="/home/pi/rdio" accessType="SFTP" host="192.168.100.70" port="22" sshConfigId="c0a242a8-a703-441c-81fb-b6501b1a0c6e" sshConfig="Raspberry Pi 3 - Radio">
+          <advancedOptions>
+            <advancedOptions controlEncoding="UTF-8" dataProtectionLevel="Private" keepAliveTimeout="30000" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

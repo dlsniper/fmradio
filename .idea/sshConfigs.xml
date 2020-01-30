@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SshConfigs">
+    <configs>
+      <sshConfig authType="PASSWORD" host="192.168.100.70" id="c0a242a8-a703-441c-81fb-b6501b1a0c6e" port="22" customName="Raspberry Pi 3 - Radio" nameFormat="CUSTOM" username="pi">
+        <option name="customName" value="Raspberry Pi 3 - Radio" />
+      </sshConfig>
+    </configs>
+  </component>
+</project>
