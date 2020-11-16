@@ -240,8 +240,8 @@ const (
 type command []uint8
 
 // The list of the different commands.
-var (
-	cmdPowerUp = command{
+func cmdPowerUp() command {
+	return command{
 		CMD_POWER_UP,
 		0x12,
 		// CTS interrupt disabled
@@ -251,46 +251,60 @@ var (
 		// FM transmit
 		0x50, // analog input mode
 	}
+}
 
-	cmdPowerDown = command{
+func cmdPowerDown() command {
+	return command{
 		CMD_POWER_DOWN,
 		0,
 	}
+}
 
-	cmdGetRev = command{
+func cmdGetRev() command {
+	return command{
 		CMD_GET_REV,
 		0,
 	}
+}
 
-	cmdTuneFM = command{
+func cmdTuneFM(h, l uint8) command {
+	return command{
 		CMD_TX_TUNE_FREQ,
 		0,
-		0,
-		0,
+		h,
+		l,
 	}
+}
 
-	cmdReadTuneStatus = command{
+func cmdReadTuneStatus() command {
+	return command{
 		CMD_TX_TUNE_STATUS,
 		0x1, // INTACK
 	}
+}
 
-	cmdTuneMeasure = command{
+func cmdTuneMeasure(h, l uint8) command {
+	return command{
 		CMD_TX_TUNE_MEASURE,
 		0,
-		0,
-		0,
+		h,
+		l,
 		0,
 	}
+}
 
-	cmdSetTxPower = command{
+func cmdSetTxPower(pwr, antCap uint8) command {
+	return command{
 		CMD_TX_TUNE_POWER,
 		0,
 		0,
-		0,
-		0,
+		pwr,
+		antCap,
 	}
+}
 
-	cmdSetProperty = command{
+func cmdSetProperty() command {
+	return command{
 		CMD_SET_PROPERTY,
 		0,
 		0,
@@ -298,69 +312,114 @@ var (
 		0,
 		0,
 	}
+}
 
-	cmdSetRDSStationName = command{
+func cmdSetRDSStationName(slotName uint8, n1, n2, n3, n4 byte) command {
+	return command{
 		CMD_TX_RDS_PS,
-		0,
-		0,
-		0,
-		0,
-		0,
+		slotName,
+		n1,
+		n2,
+		n3,
+		n4,
 	}
+}
 
-	cmdSetRDSMessage = command{
-		CMD_TX_RDS_BUFF,
-		0,
-		0,
-		0,
-		0,
-		0,
-		0,
-		0,
+func cmdSetRDSMessage(messageType, msgType, msgP, slot uint8, n1 byte, n2 byte, n3 byte, n4 byte) command {
+	return command{
+		messageType,
+		msgType,
+		msgP,
+		slot,
+		n1,
+		n2,
+		n3,
+		n4,
 	}
+}
 
-	cmdSetGPIOCtrl = command{
+func cmdSetGPIOCtrl(pin uint8) command {
+	return command{
 		CMD_GPO_CTL,
-		0,
+		pin,
 	}
+}
 
-	cmdSetGPIO = command{
+func cmdSetGPIO(pin uint8) command {
+	return command{
 		CMD_GPO_SET,
-		0,
+		pin,
 	}
+}
 
-	cmdASQStatus = command{
+func cmdASQStatus() command {
+	return command{
 		CMD_TX_ASQ_STATUS,
 		0x1,
 	}
-)
+}
+
+// Si4713Config holds the additional configuration needed for Si4713Driver.
+type Si4713Config struct {
+	// DebugMode allows for greater details to be available during debugging
+	DebugMode bool
+
+	// DebugLog allows for debugging message handling
+	DebugLog func(format string, v ...interface{})
+
+	// Log provides access to any log data produced by the device
+	Log func(format string, v ...interface{})
+
+	// AlternateFrequency specifies transmission frequency.
+	// Must be between 8750 and 10800.
+	// Value * 10 = value in MHz
+	AlternateFrequency uint16
+
+	// HasRDS enables the RDS support
+	HasRDS bool
+
+	// RDSProgramID specifies the ID of our station for RDS transmission
+	RDSProgramID uint16
+
+	// RDSMessage is the message sent out via RDS
+	RDSMessage string
+
+	// ResetPin marks the pin used for resetting the device. Default is 29
+	ResetPin string
+
+	// RDSStationName is the name of the station that shows up in RDS information
+	RDSStationName string
+
+	// StopAfterFrequencyScan enables us exit after a quick frequency scan.
+	// Must be combined with WithFrequencyScan flag.
+	StopAfterFrequencyScan bool
+
+	// TransmitFrequency is our main transmission frequency.
+	// Must be between 8750 and 10800.
+	// Value * 10 = value in MHz
+	TransmitFrequency uint16
+
+	// TransmitPower is our transmission power.
+	// Must be between 88-115, value is in dBuV
+	TransmitPower uint8
+
+	// WithFrequencyScan enables scanning of frequencies before transmission.
+	// Can be used with StopAfterFrequencyScan.
+	WithFrequencyScan bool
+}
 
 // Si4713Driver holds the implementation to talk to the
 // Adafruit Si 4713 FM Radio Transmitter breakout.
 //
 //goland:noinspection GoUnnecessarilyExportedIdentifiers
 type Si4713Driver struct {
-	resetPin string
-
+	name         string
 	i2cAddr      int
 	conn         i2c.Connection
 	i2cConnector i2c.Connector
 	i2c.Config
 
-	debugMode bool
-	debugLog  func(format string, v ...interface{})
-	log       func(format string, v ...interface{})
-
-	programID              uint16
-	name                   string
-	transmitPower          uint8
-	transmitFrequency      uint16
-	alternateFrequency     uint16
-	stopAfterFrequencyScan bool
-	withFrequencyScan      bool
-	hasRDS                 bool
-	stationName            string
-	rdsMessage             string
+	Si4713Config
 }
 
 // Name of our device.
@@ -375,73 +434,68 @@ func (s *Si4713Driver) SetName(name string) {
 
 // Start the device work.
 func (s *Si4713Driver) Start() error {
-	if s.transmitFrequency == 0 {
-		return fmt.Errorf("FM transmission frequency not set. Use SetConfig() to prevent this in the future")
-	}
-	if s.transmitFrequency < 7600 || s.transmitFrequency > 10800 {
-		return fmt.Errorf("FM transmission frequency not in 87.50 MHz ... 108 MHz bounds. Use SetConfig() to prevent this in the future")
+	// Run validation again, just in case the driver was not created
+	// via the New function
+	if err := s.Validate(); err != nil {
+		return err
 	}
 
 	bus := s.GetBusOrDefault(s.i2cConnector.GetDefaultBus())
-	var err error
-	s.conn, err = s.i2cConnector.GetConnection(s.i2cAddr, bus)
-	if err != nil {
+
+	if conn, err := s.i2cConnector.GetConnection(s.i2cAddr, bus); err != nil {
 		return err
+	} else {
+		s.conn = conn
 	}
 
-	begun, err := s.begin()
-	if err != nil {
+	if begun, err := s.begin(); err != nil {
 		return err
-	}
-	if !begun { // begin with address 0x63 (CS high default)
+	} else if !begun { // begin with address 0x63 (CS high default)
 		return fmt.Errorf("couldn't find radio")
 	}
 
-	if s.withFrequencyScan {
-		if err = s.scanFrequencies(); err != nil {
+	if s.WithFrequencyScan {
+		if err := s.scanFrequencies(); err != nil {
 			return err
 		}
 	}
 
-	if s.stopAfterFrequencyScan {
+	if s.StopAfterFrequencyScan {
 		return fmt.Errorf("forced stop due to configuration option")
 	}
 
-	if s.withFrequencyScan {
-		if err = s.scanTransmitFrequency(); err != nil {
+	if s.WithFrequencyScan {
+		if err := s.scanTransmitFrequency(); err != nil {
 			return err
 		}
 	}
 
-	if s.debugMode {
-		s.debugLog("Set TX power %d\n", s.transmitPower)
+	if s.DebugMode {
+		s.DebugLog("Set TX power %d\n", s.TransmitPower)
 	}
-	if err = s.setTxPower(s.transmitPower, 0); err != nil {
+	if err := s.setTxPower(s.TransmitPower, 0); err != nil {
 		return err
 	}
 
-	if s.debugMode {
-		s.debugLog("Tuning into %.2f\n", float32(s.transmitFrequency)/100)
+	if s.DebugMode {
+		s.DebugLog("Tuning into %.2f\n", float32(s.TransmitFrequency)/100)
 	}
-	if err = s.tuneFM(s.transmitFrequency); err != nil {
+	if err := s.tuneFM(s.TransmitFrequency); err != nil {
 		return err
 	}
 
 	// This will tell you the status in case you want to read it from the chip
-	currFreq, currdBuV, currAntCap, currNoiseLevel, err := s.readTuneStatus()
-	if err != nil {
+	if currFreq, currdBuV, currAntCap, currNoiseLevel, err := s.readTuneStatus(); err != nil {
 		return err
+	} else if s.DebugMode {
+		s.DebugLog("Curr freq: %.2f\n", float32(currFreq)/100)
+		s.DebugLog("Curr freq dBuV: %d\n", currdBuV)
+		s.DebugLog("Curr ANT cap: %d\n", currAntCap)
+		s.DebugLog("Curr noise level: %d\n", currNoiseLevel)
 	}
 
-	if s.debugMode {
-		s.debugLog("Curr freq: %.2f\n", float32(currFreq)/100)
-		s.debugLog("Curr freq dBuV: %d\n", currdBuV)
-		s.debugLog("Curr ANT cap: %d\n", currAntCap)
-		s.debugLog("Curr noise level: %d\n", currNoiseLevel)
-	}
-
-	if s.hasRDS {
-		if err = s.EnableRDS(); err != nil {
+	if s.HasRDS {
+		if err := s.EnableRDS(); err != nil {
 			return err
 		}
 	}
@@ -462,18 +516,18 @@ func (s *Si4713Driver) Connection() gobot.Connection {
 
 // EnableRDS will configure then turn on the RDS/RDBS transmission.
 func (s *Si4713Driver) EnableRDS() error {
-	if err := s.beginRDS(s.programID); err != nil {
+	if err := s.beginRDS(s.RDSProgramID); err != nil {
 		return err
 	}
-	if err := s.SetRDSStation(s.stationName); err != nil {
+	if err := s.SetRDSStation(s.RDSStationName); err != nil {
 		return err
 	}
-	if err := s.SetRDSMessage(s.rdsMessage); err != nil {
+	if err := s.SetRDSMessage(s.RDSMessage); err != nil {
 		return err
 	}
 
-	if s.debugMode {
-		s.debugLog("RDS on!\n")
+	if s.DebugMode {
+		s.DebugLog("RDS on!\n")
 	}
 
 	return nil
@@ -490,8 +544,8 @@ func (s *Si4713Driver) scanFrequencies() error {
 		if err != nil {
 			return err
 		}
-		if s.debugMode {
-			s.debugLog("Noise level on %.2f MHz is %d\n", float32(f)/100, currNoiseLevel)
+		if s.DebugMode {
+			s.DebugLog("Noise level on %.2f MHz is %d\n", float32(f)/100, currNoiseLevel)
 		}
 	}
 	return nil
@@ -499,7 +553,7 @@ func (s *Si4713Driver) scanFrequencies() error {
 
 // Scan the power of existing transmissions over our transmission frequency.
 func (s *Si4713Driver) scanTransmitFrequency() error {
-	if err := s.readTuneMeasure(s.transmitFrequency); err != nil {
+	if err := s.readTuneMeasure(s.TransmitFrequency); err != nil {
 		return err
 	}
 
@@ -507,8 +561,8 @@ func (s *Si4713Driver) scanTransmitFrequency() error {
 	if err != nil {
 		return err
 	}
-	if s.debugMode {
-		s.debugLog("Noise level on %.2f MHz is %d\n", float32(s.transmitFrequency)/100, currNoiseLevel)
+	if s.DebugMode {
+		s.DebugLog("Noise level on %.2f MHz is %d\n", float32(s.TransmitFrequency)/100, currNoiseLevel)
 	}
 	return nil
 }
@@ -518,14 +572,12 @@ func (s *Si4713Driver) scanTransmitFrequency() error {
 //
 //goland:noinspection GoUnnecessarilyExportedIdentifiers
 func (s *Si4713Driver) SetGPIO(pin uint8) error {
-	cmdSetGPIO[1] = pin
-
-	return s.sendCommand(cmdSetGPIO)
+	return s.sendCommand(cmdSetGPIO(pin))
 }
 
 // readASQ performs a status read for the TxAsqStatus.
 func (s *Si4713Driver) readASQ() (status, currASQ, currInLevel byte, err error) {
-	if err = s.sendCommand(cmdASQStatus); err != nil {
+	if err = s.sendCommand(cmdASQStatus()); err != nil {
 		return 0, 0, 0, err
 	}
 
@@ -548,7 +600,7 @@ func (s *Si4713Driver) readASQ() (status, currASQ, currInLevel byte, err error) 
 // Queries the status of a previously sent TX Tune Freq, TX Tune
 // Power, or TX Tune Measure using CMD_TX_TUNE_STATUS command.
 func (s *Si4713Driver) readTuneStatus() (currFreq uint16, currdBuV, currAntCap, currNoiseLevel uint8, err error) {
-	if err = s.sendCommand(cmdReadTuneStatus); err != nil {
+	if err = s.sendCommand(cmdReadTuneStatus()); err != nil {
 		return 0, 0, 0, 0, err
 	}
 
@@ -604,18 +656,12 @@ func (s *Si4713Driver) SetRDSStation(stationName string) error {
 	slots := uint8((len(stationName) + 3) / 4)
 	j = 0
 	for i := uint8(0); i < slots; i++ {
-		// set slot number
-		cmdSetRDSStationName[1] = i
-
-		// set message
-		cmdSetRDSStationName[2] = name[j]
-		cmdSetRDSStationName[3] = name[j+1]
-		cmdSetRDSStationName[4] = name[j+2]
-		cmdSetRDSStationName[5] = name[j+3]
-		j += 4
-		if err := s.sendCommand(cmdSetRDSStationName); err != nil {
+		// set slot number, then the message
+		c := cmdSetRDSStationName(i, name[j], name[j+1], name[j+2], name[j+3])
+		if err := s.sendCommand(c); err != nil {
 			return err
 		}
+		j += 4
 	}
 
 	return nil
@@ -633,24 +679,15 @@ func (s *Si4713Driver) SetRDSMessage(message string) error {
 	slots := uint8((len(message) + 3) / 4)
 	j = 0
 	for i := uint8(0); i < slots; i++ {
-		cmdSetRDSMessage[0] = CMD_TX_RDS_BUFF
-
+		msgType := uint8(0x04)
 		if i == 0 {
-			cmdSetRDSMessage[1] = 0x06
-		} else {
-			cmdSetRDSMessage[1] = 0x04
+			msgType = 0x06
 		}
 
-		cmdSetRDSMessage[2] = 0x20
-		cmdSetRDSMessage[3] = i
-
-		cmdSetRDSMessage[4] = msg[j]
-		cmdSetRDSMessage[5] = msg[j+1]
-		cmdSetRDSMessage[6] = msg[j+2]
-		cmdSetRDSMessage[7] = msg[j+3]
+		c := cmdSetRDSMessage(CMD_TX_RDS_BUFF, msgType, 0x20, i, msg[j], msg[j+1], msg[j+2], msg[j+3])
 		j += 4
 
-		if err := s.sendCommand(cmdSetRDSMessage); err != nil {
+		if err := s.sendCommand(c); err != nil {
 			return err
 		}
 	}
@@ -659,8 +696,8 @@ func (s *Si4713Driver) SetRDSMessage(message string) error {
 		return err
 	}
 
-	if s.debugMode {
-		s.debugLog("Enabling the RDS subsystem...\n")
+	if s.DebugMode {
+		s.DebugLog("Enabling the RDS subsystem...\n")
 	}
 
 	// stereo, pilot+rds
@@ -669,8 +706,7 @@ func (s *Si4713Driver) SetRDSMessage(message string) error {
 
 // Configures GP1 / GP2 as output or Hi-Z.
 func (s *Si4713Driver) setGPIOCtrl(pin uint8) error {
-	cmdSetGPIOCtrl[1] = pin
-	return s.sendCommand(cmdSetGPIOCtrl)
+	return s.sendCommand(cmdSetGPIOCtrl(pin))
 }
 
 // Resets the registers to default settings and puts chip in.
@@ -680,17 +716,17 @@ func (s *Si4713Driver) reset() (err error) {
 		return fmt.Errorf("i2c connector does not have a digital writter capability")
 	}
 
-	if err = dw.DigitalWrite(s.resetPin, high); err != nil {
+	if err = dw.DigitalWrite(s.ResetPin, high); err != nil {
 		return err
 	}
 	time.Sleep(10 * time.Millisecond)
 
-	if err = dw.DigitalWrite(s.resetPin, low); err != nil {
+	if err = dw.DigitalWrite(s.ResetPin, low); err != nil {
 		return err
 	}
 	time.Sleep(10 * time.Millisecond)
 
-	return dw.DigitalWrite(s.resetPin, high)
+	return dw.DigitalWrite(s.ResetPin, high)
 }
 
 // Sends power up command to the breakout, then CTS and GPO2 output
@@ -702,7 +738,7 @@ func (s *Si4713Driver) reset() (err error) {
 //            PROP_TX_ACOMP_ENABLE: turned on limiter and AGC
 //
 func (s *Si4713Driver) powerUp() error {
-	if err := s.sendCommand(cmdPowerUp); err != nil {
+	if err := s.sendCommand(cmdPowerUp()); err != nil {
 		return err
 	}
 
@@ -732,7 +768,7 @@ func (s *Si4713Driver) powerUp() error {
 
 // Turn off the device.
 func (s *Si4713Driver) powerDown() error {
-	return s.sendCommand(cmdPowerDown)
+	return s.sendCommand(cmdPowerDown())
 }
 
 // Setups the i2cConnector and calls powerUp function.
@@ -752,7 +788,7 @@ func (s *Si4713Driver) begin() (bool, error) {
 
 // Get the hardware revision code from the device using CMD_GET_REV.
 func (s *Si4713Driver) getRev() (uint8, error) {
-	if err := s.sendCommand(cmdGetRev); err != nil {
+	if err := s.sendCommand(cmdGetRev()); err != nil {
 		return 0, err
 	}
 
@@ -777,11 +813,11 @@ func (s *Si4713Driver) getRev() (uint8, error) {
 
 	chipRev := values[8]
 
-	if s.debugMode {
-		s.debugLog("Part # Si47%d-%x", partNumber, fw)
-		s.debugLog("Firmware %x\n", fw)
-		s.debugLog("Patch %x\n", patch)
-		s.debugLog("Chip rev %d\n", chipRev)
+	if s.DebugMode {
+		s.DebugLog("Part # Si47%d-%x", partNumber, fw)
+		s.DebugLog("Firmware %x\n", fw)
+		s.DebugLog("Patch %x\n", patch)
+		s.DebugLog("Chip rev %d\n", chipRev)
 	}
 
 	return partNumber, nil
@@ -789,9 +825,9 @@ func (s *Si4713Driver) getRev() (uint8, error) {
 
 // Tunes to given transmit frequency.
 func (s *Si4713Driver) tuneFM(freqKHz uint16) error {
-	cmdTuneFM[2] = uint8(freqKHz >> 8)
-	cmdTuneFM[3] = uint8(freqKHz & 0xFF)
-	if err := s.sendCommand(cmdTuneFM); err != nil {
+	h := uint8(freqKHz >> 8)
+	l := uint8(freqKHz & 0xFF)
+	if err := s.sendCommand(cmdTuneFM(h, l)); err != nil {
 		return err
 	}
 
@@ -824,8 +860,8 @@ func (s *Si4713Driver) deviceStatus() (err error) {
 	}
 
 	// values[0] discarded
-	s.debugLog("Circular avail: %d used: %d\n", values[2], values[3])
-	s.debugLog("FIFO avail: %d used: %d overflow: %d\n", values[4], values[5], values[1])
+	s.DebugLog("Circular avail: %d used: %d\n", values[2], values[3])
+	s.DebugLog("FIFO avail: %d used: %d overflow: %d\n", values[4], values[5], values[1])
 	return nil
 }
 
@@ -835,13 +871,13 @@ func (s *Si4713Driver) readTuneMeasure(freq uint16) error {
 	if freq%5 != 0 {
 		freq -= freq % 5
 	}
-	if s.debugMode {
-		s.debugLog("Measuring frequency: %.2f MHz\n", float32(freq)/100)
+	if s.DebugMode {
+		s.DebugLog("Measuring frequency: %.2f MHz\n", float32(freq)/100)
 	}
 
-	cmdTuneMeasure[2] = uint8(freq >> 8)
-	cmdTuneMeasure[3] = uint8(freq & 0xFF)
-	if err := s.sendCommand(cmdTuneMeasure); err != nil {
+	h := uint8(freq >> 8)
+	l := uint8(freq & 0xFF)
+	if err := s.sendCommand(cmdTuneMeasure(h, l)); err != nil {
 		return err
 	}
 
@@ -860,24 +896,22 @@ func (s *Si4713Driver) readTuneMeasure(freq uint16) error {
 
 // Sets the output power level and tunes the antenna capacitor.
 func (s *Si4713Driver) setTxPower(pwr, antCap uint8) error {
-	cmdSetTxPower[3] = pwr
-	cmdSetTxPower[4] = antCap
-
-	return s.sendCommand(cmdSetTxPower)
+	return s.sendCommand(cmdSetTxPower(pwr, antCap))
 }
 
 // Set chip property over I2C.
 func (s *Si4713Driver) setProperty(property uint16, value uint16) error {
-	if s.debugMode {
-		s.debugLog("Set Prop 0x%x = 0x%x (%d)\n", property, value, value)
+	if s.DebugMode {
+		s.DebugLog("Set Prop 0x%x = 0x%x (%d)\n", property, value, value)
 	}
 
-	cmdSetProperty[2] = uint8(property >> 8)
-	cmdSetProperty[3] = uint8(property & 0xFF)
-	cmdSetProperty[4] = uint8(value >> 8)
-	cmdSetProperty[5] = uint8(value & 0xFF)
+	p := cmdSetProperty()
+	p[2] = uint8(property >> 8)
+	p[3] = uint8(property & 0xFF)
+	p[4] = uint8(value >> 8)
+	p[5] = uint8(value & 0xFF)
 
-	return s.sendCommand(cmdSetProperty)
+	return s.sendCommand(p)
 }
 
 //  Begin RDS
@@ -929,7 +963,7 @@ func (s *Si4713Driver) beginRDS(programID uint16) error {
 		return err
 	}
 
-	if err := s.setProperty(PROP_TX_RDS_PS_AF, s.alternateFrequency); err != nil {
+	if err := s.setProperty(PROP_TX_RDS_PS_AF, s.AlternateFrequency); err != nil {
 		return err
 	}
 	if err := s.setProperty(PROP_TX_RDS_FIFO_SIZE, 0); err != nil {
@@ -941,14 +975,14 @@ func (s *Si4713Driver) beginRDS(programID uint16) error {
 
 // Send command to the radio chip.
 func (s *Si4713Driver) sendCommand(cmd command) (err error) {
-	if s.debugMode {
-		s.debugLog("*** Command: %s\n", s.sliceToString(cmd))
+	if s.DebugMode {
+		s.DebugLog("*** Command: %s\n", s.sliceToString(cmd))
 	}
 	if _, err = s.conn.Write(cmd); err != nil {
 		return err
 	}
 
-	if cmd[0] == cmdPowerDown[0] {
+	if cmd[0] == CMD_POWER_DOWN {
 		return nil
 	}
 
@@ -959,8 +993,8 @@ func (s *Si4713Driver) sendCommand(cmd command) (err error) {
 		if err != nil {
 			return err
 		}
-		if s.debugMode {
-			s.debugLog("status: %x (%d)\n", status, status)
+		if s.DebugMode {
+			s.DebugLog("status: %x (%d)\n", status, status)
 		}
 	}
 
@@ -968,21 +1002,12 @@ func (s *Si4713Driver) sendCommand(cmd command) (err error) {
 }
 
 func (s *Si4713Driver) setRDSTime() error {
-	cmdSetRDSMessage[0] = CMD_TX_RDS_BUFF
-	cmdSetRDSMessage[1] = 0x84
-	cmdSetRDSMessage[2] = 0x40 // RTC
-	cmdSetRDSMessage[3] = 01
-	cmdSetRDSMessage[4] = 0xA7
-	cmdSetRDSMessage[5] = 0x0B
-	cmdSetRDSMessage[6] = 0x2D
-	cmdSetRDSMessage[7] = 0x6C
-
-	return s.sendCommand(cmdSetRDSMessage)
+	return s.sendCommand(cmdSetRDSMessage(CMD_TX_RDS_BUFF, 0x84, 0x40, 01, 0xA7, 0x0B, 0x2D, 0x6C))
 }
 
 // Loop performs the main application loop to transmit data and check the device status.
 func (s *Si4713Driver) Loop() error {
-	if !s.debugMode {
+	if !s.DebugMode {
 		return nil
 	}
 
@@ -991,7 +1016,7 @@ func (s *Si4713Driver) Loop() error {
 		return err
 	}
 
-	s.debugLog("Curr Status: 0x%x ASQ: 0x%x InLevel: %d dBfs\n", status, currASQ, int8(currInLevel))
+	s.DebugLog("Curr Status: 0x%x ASQ: 0x%x InLevel: %d dBfs\n", status, currASQ, int8(currInLevel))
 
 	// toggle GPO1 and GPO2
 	if err = s.SetGPIO(1 << 1); err != nil {
@@ -1018,8 +1043,8 @@ func (s *Si4713Driver) buffRead(size int) ([]byte, error) {
 		return nil, fmt.Errorf("failed to read %d bytes from the line, read %d -> %s", size, len(values), s.sliceToString(values))
 	}
 
-	if s.debugMode {
-		s.debugLog("read %d bytes: %s", size, s.sliceToString(values))
+	if s.DebugMode {
+		s.DebugLog("read %d bytes: %s", size, s.sliceToString(values))
 	}
 	return values, nil
 }
@@ -1030,23 +1055,6 @@ func (s *Si4713Driver) sliceToString(val []byte) string {
 		res += fmt.Sprintf("[%d]=0x%x(%d) ", idx, val[idx], val[idx])
 	}
 	return res
-}
-
-// Si4713Config holds the additional configuration needed for Si4713Driver.
-type Si4713Config struct {
-	TransmitFrequency      uint16
-	AlternateFrequency     uint16
-	TransmitPower          uint8
-	ResetPin               string
-	DebugMode              bool
-	WithFrequencyScan      bool
-	StopAfterFrequencyScan bool
-	HasRDS                 bool
-	ProgramID              uint16
-	StationName            string
-	RdsMessage             string
-	DebugLog               func(format string, v ...interface{})
-	Log                    func(format string, v ...interface{})
 }
 
 // Validate ensures that our Si4713Driver configuration is valid.
@@ -1086,14 +1094,14 @@ func (c *Si4713Config) Validate() error {
 	}
 
 	// If we don't have a valid program ID, then we can set a default one
-	if c.ProgramID < 1 {
-		c.ProgramID = 0x3104
+	if c.RDSProgramID < 1 {
+		c.RDSProgramID = 0x3104
 	}
 
 	return nil
 }
 
-// NewSi4713Driver creates a new GoBot driver for our FM transmitter.
+// NewSi4713Driver creates a new Gobot driver for our FM transmitter
 func NewSi4713Driver(connector i2c.Connector, cfg Si4713Config, options ...func(i2c.Config)) (*Si4713Driver, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -1105,19 +1113,7 @@ func NewSi4713Driver(connector i2c.Connector, cfg Si4713Config, options ...func(
 		Config:       i2c.NewConfig(),
 		i2cAddr:      Address,
 
-		transmitFrequency:      cfg.TransmitFrequency,
-		alternateFrequency:     cfg.AlternateFrequency,
-		transmitPower:          cfg.TransmitPower,
-		resetPin:               cfg.ResetPin,
-		debugMode:              cfg.DebugMode,
-		withFrequencyScan:      cfg.WithFrequencyScan,
-		stopAfterFrequencyScan: cfg.StopAfterFrequencyScan,
-		hasRDS:                 cfg.HasRDS,
-		programID:              cfg.ProgramID,
-		stationName:            cfg.StationName,
-		rdsMessage:             cfg.RdsMessage,
-		log:                    cfg.Log,
-		debugLog:               cfg.DebugLog,
+		Si4713Config: cfg,
 	}
 
 	for _, option := range options {

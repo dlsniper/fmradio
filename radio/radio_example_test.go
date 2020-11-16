@@ -24,9 +24,9 @@ func ExampleSi4713Driver() {
 		ResetPin:          "29",
 		DebugMode:         false,
 		HasRDS:            true,
-		ProgramID:         0x3104,
-		StationName:       stationName,
-		RdsMessage:        rdsMessage,
+		RDSProgramID:      0x3104,
+		RDSStationName:    stationName,
+		RDSMessage:        rdsMessage,
 		Log:               log.Printf,
 		DebugLog:          nil,
 	}

@@ -21,14 +21,15 @@ func main() {
 	adaptor := raspi.NewAdaptor()
 
 	radioConfig := radio.Si4713Config{
-		TransmitFrequency:  9550,
-		TransmitPower:      115,
-		HasRDS:             true,
-		ProgramID:          0x3104,
-		StationName:        stationName,
-		RdsMessage:         rdsMessage,
-		Log:                log.Printf,
+		TransmitFrequency: 9550,
+		TransmitPower:     115,
+		HasRDS:            true,
+		RDSProgramID:      0x3104,
+		RDSStationName:    stationName,
+		RDSMessage:        rdsMessage,
+		Log:               log.Printf,
 	}
+
 	rdio, err := radio.NewSi4713Driver(adaptor, radioConfig)
 	if err != nil {
 		log.Fatalln(err)
