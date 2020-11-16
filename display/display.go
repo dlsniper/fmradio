@@ -77,12 +77,12 @@ func (lcd *SunFounderLCD1602Driver) Connection() gobot.Connection {
 
 // Send a command to the LCD
 func (lcd *SunFounderLCD1602Driver) sendCommand(cmd byte) (err error) {
-	return lcd.communicate(command, cmd, err)
+	return lcd.communicate(command, cmd)
 }
 
 // Send data to the LCD
 func (lcd *SunFounderLCD1602Driver) sendData(cmd byte) (err error) {
-	return lcd.communicate(data, cmd, err)
+	return lcd.communicate(data, cmd)
 }
 
 // write handles the actual data writing to the LCD i2c connection
@@ -98,25 +98,25 @@ func (lcd *SunFounderLCD1602Driver) write(data byte) error {
 }
 
 // Communicate with the LCD by sending either a command or data
-func (lcd *SunFounderLCD1602Driver) communicate(cmdType byte, cmd byte, err error) error {
+func (lcd *SunFounderLCD1602Driver) communicate(cmdType byte, cmd byte) error {
 	// Send bit7-4 firstly
 	buf := cmd & 0xF0
 	buf |= cmdType // RS = 0, RW = 0, EN = 1
-	if err = lcd.write(buf); err != nil {
+	if err := lcd.write(buf); err != nil {
 		return err
 	}
 
 	time.Sleep(2 * time.Millisecond)
 
 	buf &= 0xFB // Make EN = 0
-	if err = lcd.write(buf); err != nil {
+	if err := lcd.write(buf); err != nil {
 		return err
 	}
 
 	// Send bit3-0 secondly
 	buf = (cmd & 0x0F) << 4
 	buf |= cmdType // RS = 0, RW = 0, EN = 1
-	if err = lcd.write(buf); err != nil {
+	if err := lcd.write(buf); err != nil {
 		return err
 	}
 
